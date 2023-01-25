@@ -5,6 +5,8 @@ import click
 import sys
 
 
+# TODO : Add GUI, I think I'd like to use PySimpleGUI for this.
+
 def get_files(excel_file: str) -> list:
     """Extracts filepaths from the given Excel document.
 
