@@ -85,6 +85,7 @@ def enum_files(destination: str, files_dict: dict, move=False, test=False):
 
                 click.echo(click.style("Success", fg="green") + " - " + f"{'Copied' if not move else 'Moved'} file ({click.style(file, fg='yellow')}) from '{click.style(source, fg='magenta')}' to '{click.style(destination, fg='cyan')}'")
             else:
+                # TODO : If a file cannot be moved for any reason.. Add it to a list to display at the end of the script.
                 click.echo(click.style("Warning", fg="yellow") + " - " + f"Skipping - Cannot find file: {full_source}")
 
 
