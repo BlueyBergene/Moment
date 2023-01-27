@@ -15,9 +15,16 @@ def get_files(excel_file: str) -> list:
 
     Returns:
         list: Lists of paths"""
+
+
     file = pathlib.Path(excel_file)
     if file.is_file():
         click.echo(click.style("Success", fg="green") + " - " + "Source file found.")
+        # TODO : I need to restructure how my script read the excel file.
+        #  Column A should be 'document name',
+        #  Column B should be 'Source',
+        #  Column C should be 'Destination' - Currently the destination is passed as an option when launching the script, and it's used for ALL files..
+        #  Currently my script just grabs whatever values are in the Excel sheet and assumes they are paths..
         dataframe2 = pd.read_excel(excel_file, header=None, index_col=None)
         files_lists_in_list = dataframe2.values.tolist()
         files_list = merge_lists(files_lists_in_list)
