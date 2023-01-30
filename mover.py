@@ -1,4 +1,5 @@
 from pprint import pprint
+import openpyxl
 import pandas as pd
 import pathlib
 import shutil
@@ -9,7 +10,7 @@ import sys
 # TODO : Add GUI, I think I'd like to use PySimpleGUI for this.
 # TODO : Make the script change working directory to the dir where the files are to be moved FROM
 
-def get_files(excel_file: str) -> list:
+def get_files_old(excel_file: str) -> list:
     """Extracts filepaths from the given Excel document.
 
     Parameters:
@@ -27,6 +28,7 @@ def get_files(excel_file: str) -> list:
         #  Column B should be 'Source',
         #  Column C should be 'Destination' - Currently the destination is passed as an option when launching the script, and it's used for ALL files..
         #  Currently my script just grabs whatever values are in the Excel sheet and assumes they are paths..
+        #  These should be structured into a dict (I think) with this structure: {'file': <file path>, 'source': <source path>, 'dest': <dest path>}
         dataframe2 = pd.read_excel(excel_file, header=None, index_col=None)
         files_lists_in_list = dataframe2.values.tolist()
         files_list = merge_lists(files_lists_in_list)
@@ -39,7 +41,40 @@ def get_files(excel_file: str) -> list:
         click.echo(click.style("Error", fg="red") + " - " + "Source file not found." + click.style(" Aborting!", fg="red"))
     sys.exit()
 
+def get_files(excel_file: str, sheet) -> list:
+    """Extracts filepaths from the given Excel document.
 
+    Parameters:
+        excel_file (str): The path to the Excel file.
+
+    Returns:
+        list: Lists of paths"""
+
+
+    file = pathlib.Path(excel_file)
+    if file.is_file():
+        print(sheet)
+        click.echo(click.style("Success", fg="green") + " - " + "Source file found.")
+        # TODO : I need to restructure how my script read the excel file.
+        #  Column A should be 'document name',
+        #  Column B should be 'Source',
+        #  Column C should be 'Destination' - Currently the destination is passed as an option when launching the script, and it's used for ALL files..
+        #  Currently my script just grabs whatever values are in the Excel sheet and assumes they are paths..
+        #  These should be structured into a dict (I think) with this structure: {'file': <file path>, 'source': <source path>, 'dest': <dest path>}
+        workbook = openpyxl.load_workbook(file)
+        ws = workbook[sheet]
+        print(f"Min: {ws.min_row}, Max: {ws.max_row}")
+        sys.exit()
+        
+        for col_cells in ws.iter_rows(min_row=ws.min_row, max_row=ws.max_row):
+            for cell in col_cells:
+                print('%s: cell.value=%s' % (cell, cell.value))
+    elif file.is_dir():
+        # TODO : I could add folder handling. When a folder is specified it enumerates the files in that dir instead of getting files form Excel.
+        click.echo(click.style("Error", fg="red") + " - " + "Given path is a folder, not an Excel file." + click.style(" Aborting!", fg="red"))
+    else:
+        click.echo(click.style("Error", fg="red") + " - " + "Source file not found." + click.style(" Aborting!", fg="red"))
+    sys.exit()
 
 
 def merge_lists(files_list: list):
@@ -105,13 +140,14 @@ def enum_files(destination: str, files_dict: dict, move=False, test=False):
 @click.command()
 @click.option("-s", "--source", help="Source excel file. If the path contains spaces, please surround them with quotes.", required=True)
 @click.option("-d", "--dest", help="Destination folder. If the path contains spaces, please surround them with quotes.", required=True)
+@click.option("-sh", "--sheet", default="Sheet1", help="Specify the sheet to read from.")
 @click.option("-m", "--move", is_flag=True, default=False, help="Set this flag to move the files instead of copying.")
 @click.option("-t", '--test', is_flag=True, default=False, help="Set this flag for a test run.")
-def main(source, dest, move, test):
-    files = get_files(source)
-    files = sort_paths(files)
-    skipped_files = enum_files(dest, files, move=move, test=test)
-    pprint(skipped_files)
+def main(source, dest, sheet, move, test):
+    files = get_files(source, sheet)
+    #files = sort_paths(files)
+    #skipped_files = enum_files(dest, files, move=move, test=test)
+    #pprint(skipped_files)
 
 if __name__ == "__main__":
     main()
