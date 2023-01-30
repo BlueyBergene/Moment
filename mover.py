@@ -73,6 +73,7 @@ def sort_paths(files_list: list) -> dict:
     return files_dict
 
 def enum_files(destination: str, files_dict: dict, move=False, test=False):
+    skipped_files = []
     dest = pathlib.Path(destination)
     if not dest.exists():
         click.echo(click.style("Error", fg="red") + " - " + "Given destination is not a valid folder." + click.style(" Aborting!", fg="red"))
@@ -94,7 +95,8 @@ def enum_files(destination: str, files_dict: dict, move=False, test=False):
             else:
                 # TODO : If a file cannot be moved for any reason.. Add it to a list to display at the end of the script.
                 click.echo(click.style("Warning", fg="yellow") + " - " + f"Skipping - Cannot find file: {full_source}")
-
+                skipped_files.Append(full_source)
+    return skipped_files
 
 
 @click.command()
@@ -105,7 +107,8 @@ def enum_files(destination: str, files_dict: dict, move=False, test=False):
 def main(source, dest, move, test):
     files = get_files(source)
     files = sort_paths(files)
-    enum_files(dest, files, move=move, test=test)
+    skipped _files = enum_files(dest, files, move=move, test=test)
+    print(skipped_files)
 
 if __name__ == "__main__":
     main()
