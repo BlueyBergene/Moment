@@ -1,3 +1,4 @@
+from pprint import pprint
 import pandas as pd
 import pathlib
 import shutil
@@ -6,6 +7,7 @@ import sys
 
 
 # TODO : Add GUI, I think I'd like to use PySimpleGUI for this.
+# TODO : Make the script change working directory to the dir where the files are to be moved FROM
 
 def get_files(excel_file: str) -> list:
     """Extracts filepaths from the given Excel document.
@@ -87,7 +89,8 @@ def enum_files(destination: str, files_dict: dict, move=False, test=False):
             full_destination = pathlib.Path(dest, file)
             if full_source.is_file():
                 if not move and not test:
-                    shutil.copy2(full_source, full_destination)
+                    #shutil.copy2(full_source, full_destination)
+                    shutil.copyfile(full_source, full_destination)
                 elif move and not test:
                     shutil.move(full_source, full_destination)
 
@@ -95,7 +98,7 @@ def enum_files(destination: str, files_dict: dict, move=False, test=False):
             else:
                 # TODO : If a file cannot be moved for any reason.. Add it to a list to display at the end of the script.
                 click.echo(click.style("Warning", fg="yellow") + " - " + f"Skipping - Cannot find file: {full_source}")
-                skipped_files.Append(full_source)
+                skipped_files.append(source + "\\" + file)
     return skipped_files
 
 
@@ -108,7 +111,7 @@ def main(source, dest, move, test):
     files = get_files(source)
     files = sort_paths(files)
     skipped_files = enum_files(dest, files, move=move, test=test)
-    print(skipped_files)
+    pprint(skipped_files)
 
 if __name__ == "__main__":
     main()
