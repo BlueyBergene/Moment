@@ -107,7 +107,7 @@ def enum_files(destination: str, files_dict: dict, move=False, test=False):
 def main(source, dest, move, test):
     files = get_files(source)
     files = sort_paths(files)
-    skipped _files = enum_files(dest, files, move=move, test=test)
+    skipped_files = enum_files(dest, files, move=move, test=test)
     print(skipped_files)
 
 if __name__ == "__main__":
