@@ -1,2 +1,2 @@
 # Moment
- Moves documents, ducoment source and destination are pulled from an excel file.
+ Moves documents, document source and destination are pulled from an excel file.
