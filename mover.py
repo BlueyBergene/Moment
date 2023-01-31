@@ -114,13 +114,17 @@ def main(src_file, abs_path, sheet, no_header, move, test):
     Important!! The paths in the Excel file can be either relative (default) or absolute.
     If you choose to work with relative paths, please start this script IN the parent folder.
 
+
         E.g: If you want to move files:
 
-        From: C:\\Users\\kbergene\\Documents\\SCO-ILD\\10.1
 
-        To: C:\\Users\\kbergene\\Documents\\SCO-ILD_Load\\10.1
+            From: C:\\Users\\kbergene\\Documents\\SCO-ILD\\10.1
+
+            To: C:\\Users\\kbergene\\Documents\\SCO-ILD_Load\\10.1
 
         Then you should run this script from the 'Documents' folder.
+
+
     It will create the destination folders, if needed.
     """
     files = enum_excel_rows(excel_file=src_file, sheet=sheet, no_header=no_header)
