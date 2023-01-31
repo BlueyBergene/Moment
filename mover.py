@@ -9,7 +9,7 @@ import os
 
 # TODO : Add GUI, I think I'd like to use PySimpleGUI for this.
 # TODO : Add overwrite protection?
-
+# TODO : Add time stamp to the log file.
 def enum_excel_rows(excel_file: str, sheet, no_header) -> dict:
     """
     Extracts filepaths from the given Excel file
