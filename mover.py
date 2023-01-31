@@ -61,22 +61,26 @@ def enum_files(files: dict, abs_path, move, test) -> dict:
         if not abs_path:
             source_folder = pathlib.Path(os.getcwd(), info["source"])
             destination_folder = pathlib.Path(os.getcwd(), info["dest"])
-            source_file = pathlib.Path(source_folder, info["file"])
-            destination_file = pathlib.Path(destination_folder, info["file"])
-            try:
-                if source_file.is_file():
-                    if not destination_folder.exists():
-                        destination_folder.mkdir(parents=True, exist_ok=True)
-                    if not move and not test:
-                        shutil.copy2(source_file, destination_file)
-                    elif move and not test:
-                        shutil.move(source_file, destination_file)
-                    click.echo(click.style("Success", fg="green") + " - " + f"{'Copied' if not move else 'Moved'} file ({click.style(source_file.name, fg='yellow')}) from '{click.style(source_folder, fg='magenta')}' to '{click.style(destination_folder, fg='cyan')}'")
-                    status["success"].append(str(source_file.resolve()))
-                else:
-                    status["skipped_files"].append(str(source_file.resolve()))
-            except:
+        else:
+            source_folder = info["source"]
+            destination_folder = info["dest"]
+
+        source_file = pathlib.Path(source_folder, info["file"])
+        destination_file = pathlib.Path(destination_folder, info["file"])
+        try:
+            if source_file.is_file():
+                if not destination_folder.exists():
+                    destination_folder.mkdir(parents=True, exist_ok=True)
+                if not move and not test:
+                    shutil.copy2(source_file, destination_file)
+                elif move and not test:
+                    shutil.move(source_file, destination_file)
+                click.echo(click.style("Success", fg="green") + " - " + f"{'Copied' if not move else 'Moved'} file ({click.style(source_file.name, fg='yellow')}) from '{click.style(source_folder, fg='magenta')}' to '{click.style(destination_folder, fg='cyan')}'")
+                status["success"].append(str(source_file.resolve()))
+            else:
                 status["skipped_files"].append(str(source_file.resolve()))
+        except:
+            status["skipped_files"].append(str(source_file.resolve()))
     return status
 
 
@@ -107,8 +111,8 @@ def enum_files(files: dict, abs_path, move, test) -> dict:
 def main(src_file, abs_path, sheet, no_header, move, test):
     """
     This is a small script to mass-copy files from one directory to another.
-    Important: The paths in the Excel can be either relative (default) or absolute.
-    If you chose to work with relative paths, please start this script IN the parent folder.
+    Important!! The paths in the Excel file can be either relative (default) or absolute.
+    If you choose to work with relative paths, please start this script IN the parent folder.
 
         E.g: If you want to move files:
 
@@ -116,8 +120,7 @@ def main(src_file, abs_path, sheet, no_header, move, test):
 
         To: C:\\Users\\kbergene\\Documents\\SCO-ILD_Load\\10.1
 
-        Then you should run this script from the 'Documents folder.
-
+        Then you should run this script from the 'Documents' folder.
     It will create the destination folders, if needed.
     """
     files = enum_excel_rows(excel_file=src_file, sheet=sheet, no_header=no_header)
