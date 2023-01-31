@@ -61,24 +61,22 @@ def enum_files(files: dict, abs_path, move, test) -> dict:
         if not abs_path:
             source_folder = pathlib.Path(os.getcwd(), info["source"])
             destination_folder = pathlib.Path(os.getcwd(), info["dest"])
-            source = pathlib.Path(source_folder, info["file"])
-            destination = pathlib.Path(destination_folder, info["file"])
+            source_file = pathlib.Path(source_folder, info["file"])
+            destination_file = pathlib.Path(destination_folder, info["file"])
             try:
-                if source.is_file():
-                    dest_dir_exists = destination_folder.exists()
-                    if not dest_dir_exists:
+                if source_file.is_file():
+                    if not destination_folder.exists():
                         destination_folder.mkdir(parents=True, exist_ok=True)
                     if not move and not test:
-                        shutil.copy2(source, destination)
+                        shutil.copy2(source_file, destination_file)
                     elif move and not test:
-                        shutil.move(source, source)
-
-                    click.echo(click.style("Success", fg="green") + " - " + f"{'Copied' if not move else 'Moved'} file ({click.style(source.name, fg='yellow')}) from '{click.style(source_folder, fg='magenta')}' to '{click.style(destination_folder, fg='cyan')}'")
-                    status["success"].append(str(source.resolve()))
+                        shutil.move(source_file, destination_file)
+                    click.echo(click.style("Success", fg="green") + " - " + f"{'Copied' if not move else 'Moved'} file ({click.style(source_file.name, fg='yellow')}) from '{click.style(source_folder, fg='magenta')}' to '{click.style(destination_folder, fg='cyan')}'")
+                    status["success"].append(str(source_file.resolve()))
                 else:
-                    status["skipped_files"].append(str(source.resolve()))
+                    status["skipped_files"].append(str(source_file.resolve()))
             except:
-                status["skipped_files"].append(str(source.resolve()))
+                status["skipped_files"].append(str(source_file.resolve()))
     return status
 
 
