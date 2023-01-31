@@ -1,2 +1,2 @@
-# pdf_mover
- Moves PDFs, PDF paths are pulled from an excel file.
+# Moment
+ Moves documents, ducoment source and destination are pulled from an excel file.
