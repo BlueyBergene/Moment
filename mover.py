@@ -1,74 +1,41 @@
-from pprint import pprint
 import openpyxl
-import pandas as pd
 import pathlib
 import shutil
 import click
 import sys
+import re
+import os
 
 
 # TODO : Add GUI, I think I'd like to use PySimpleGUI for this.
-# TODO : Make the script change working directory to the dir where the files are to be moved FROM
+# TODO : Add overwrite protection?
 
-def get_files_old(excel_file: str) -> list:
-    """Extracts filepaths from the given Excel document.
-
-    Parameters:
-        excel_file (str): The path to the Excel file.
-
-    Returns:
-        list: Lists of paths"""
-
-
-    file = pathlib.Path(excel_file)
-    if file.is_file():
-        click.echo(click.style("Success", fg="green") + " - " + "Source file found.")
-        # TODO : I need to restructure how my script read the excel file.
-        #  Column A should be 'document name',
-        #  Column B should be 'Source',
-        #  Column C should be 'Destination' - Currently the destination is passed as an option when launching the script, and it's used for ALL files..
-        #  Currently my script just grabs whatever values are in the Excel sheet and assumes they are paths..
-        #  These should be structured into a dict (I think) with this structure: {'file': <file path>, 'source': <source path>, 'dest': <dest path>}
-        dataframe2 = pd.read_excel(excel_file, header=None, index_col=None)
-        files_lists_in_list = dataframe2.values.tolist()
-        files_list = merge_lists(files_lists_in_list)
-        click.echo(click.style("Success", fg="green") + " - " + "Source file read.")
-        return files_list
-    elif file.is_dir():
-        # TODO : I could add folder handling. When a folder is specified it enumerates the files in that dir instead of getting files form Excel.
-        click.echo(click.style("Error", fg="red") + " - " + "Given path is a folder, not an Excel file." + click.style(" Aborting!", fg="red"))
-    else:
-        click.echo(click.style("Error", fg="red") + " - " + "Source file not found." + click.style(" Aborting!", fg="red"))
-    sys.exit()
-
-def get_files(excel_file: str, sheet) -> list:
-    """Extracts filepaths from the given Excel document.
-
-    Parameters:
-        excel_file (str): The path to the Excel file.
+def enum_excel_rows(excel_file: str, sheet, no_header) -> dict:
+    """
+    Extracts filepaths from the given Excel file
+    Args:
+        excel_file: The filepath index (Excel) file
+        sheet: The sheet to operate on
+        no_header: If the sheet has a header or not (Column names)
 
     Returns:
-        list: Lists of paths"""
 
-
+    """
     file = pathlib.Path(excel_file)
     if file.is_file():
-        print(sheet)
+        file_info = {}
         click.echo(click.style("Success", fg="green") + " - " + "Source file found.")
-        # TODO : I need to restructure how my script read the excel file.
-        #  Column A should be 'document name',
-        #  Column B should be 'Source',
-        #  Column C should be 'Destination' - Currently the destination is passed as an option when launching the script, and it's used for ALL files..
-        #  Currently my script just grabs whatever values are in the Excel sheet and assumes they are paths..
-        #  These should be structured into a dict (I think) with this structure: {'file': <file path>, 'source': <source path>, 'dest': <dest path>}
         workbook = openpyxl.load_workbook(file)
         ws = workbook[sheet]
-        print(f"Min: {ws.min_row}, Max: {ws.max_row}")
-        sys.exit()
-        
-        for col_cells in ws.iter_rows(min_row=ws.min_row, max_row=ws.max_row):
-            for cell in col_cells:
-                print('%s: cell.value=%s' % (cell, cell.value))
+
+        min_row = ws.min_row if no_header else ws.min_row + 1
+
+        for row_cells in ws.iter_rows(min_row=min_row, max_row=ws.max_row, max_col=3):
+            regex = re.compile(r"^\D*\.(\D)(\d*)>$")
+            matches = regex.findall(str(row_cells[0]))[0]
+            row = matches[1]
+            file_info[row] = {'file': row_cells[0].value, "source": row_cells[1].value, "dest": row_cells[2].value}
+        return file_info
     elif file.is_dir():
         # TODO : I could add folder handling. When a folder is specified it enumerates the files in that dir instead of getting files form Excel.
         click.echo(click.style("Error", fg="red") + " - " + "Given path is a folder, not an Excel file." + click.style(" Aborting!", fg="red"))
@@ -77,77 +44,98 @@ def get_files(excel_file: str, sheet) -> list:
     sys.exit()
 
 
-def merge_lists(files_list: list):
-    """Merges lists that contain lists into JUST a list.
-
-    Parameters:
-        files_list (list): List of lists.
-
-    Returns:
-        list: Merged list containing only paths."""
-    merged_list = []
-    for list in files_list:
-        merged_list.append(list[0])
-    return merged_list
-
-def sort_paths(files_list: list) -> dict:
-    """Sorts files under their parent folders.
-
-    Parameters:
-        files_list (list): List of absolute file paths.
+def enum_files(files: dict, abs_path, move, test) -> dict:
+    """
+    Enumerates over a list of files. It will then copy or move the files.
+    Args:
+        files: A dictionary containing file info (as filename, source and destination)
+        abs_path: If the paths given are absolute or not (default: 'False')
+        move: If to move or copy the files (default: 'False'
+        test: If you want to performa dry run (default: 'False'"
 
     Returns:
-       Dictionary, the files are put into lists which in turn is store in the dict under their respective parents."""
-    files_dict: dict = {}
-    for file in files_list:
-        file_path = pathlib.Path(file)
-        absolute_path = file_path.resolve()
-        parent = str(absolute_path.parent)
-        file_name = absolute_path.name
-        if not parent in files_dict:
-            files_dict[parent] = []
-        files_dict[parent].append(file_name)
-    return files_dict
+        A dict containing two lists. Status regarding the copy/move succeeded or were skipped.
+    """
+    status = {"skipped_files": [], "success": []}
+    for row, info in files.items():
+        if not abs_path:
+            source_folder = pathlib.Path(os.getcwd(), info["source"])
+            destination_folder = pathlib.Path(os.getcwd(), info["dest"])
+            source = pathlib.Path(source_folder, info["file"])
+            destination = pathlib.Path(destination_folder, info["file"])
+            try:
+                if source.is_file():
+                    dest_dir_exists = destination_folder.exists()
+                    if not dest_dir_exists:
+                        destination_folder.mkdir(parents=True, exist_ok=True)
+                    if not move and not test:
+                        shutil.copy2(source, destination)
+                    elif move and not test:
+                        shutil.move(source, source)
 
-def enum_files(destination: str, files_dict: dict, move=False, test=False):
-    skipped_files = []
-    dest = pathlib.Path(destination)
-    if not dest.exists():
-        click.echo(click.style("Error", fg="red") + " - " + "Given destination is not a valid folder." + click.style(" Aborting!", fg="red"))
-        sys.exit()
-    else:
-        click.echo("\n" + click.style("Success", fg="green") + " - " + "Destination exists.", color=True)
+                    click.echo(click.style("Success", fg="green") + " - " + f"{'Copied' if not move else 'Moved'} file ({click.style(source.name, fg='yellow')}) from '{click.style(source_folder, fg='magenta')}' to '{click.style(destination_folder, fg='cyan')}'")
+                    status["success"].append(str(source.resolve()))
+                else:
+                    status["skipped_files"].append(str(source.resolve()))
+            except:
+                status["skipped_files"].append(str(source.resolve()))
+    return status
 
-    for source, files_list in files_dict.items():
-        for file in files_list:
-            full_source = pathlib.Path(source, file)
-            full_destination = pathlib.Path(dest, file)
-            if full_source.is_file():
-                if not move and not test:
-                    #shutil.copy2(full_source, full_destination)
-                    shutil.copyfile(full_source, full_destination)
-                elif move and not test:
-                    shutil.move(full_source, full_destination)
-
-                click.echo(click.style("Success", fg="green") + " - " + f"{'Copied' if not move else 'Moved'} file ({click.style(file, fg='yellow')}) from '{click.style(source, fg='magenta')}' to '{click.style(destination, fg='cyan')}'")
-            else:
-                # TODO : If a file cannot be moved for any reason.. Add it to a list to display at the end of the script.
-                click.echo(click.style("Warning", fg="yellow") + " - " + f"Skipping - Cannot find file: {full_source}")
-                skipped_files.append(source + "\\" + file)
-    return skipped_files
 
 
 @click.command()
-@click.option("-s", "--source", help="Source excel file. If the path contains spaces, please surround them with quotes.", required=True)
-@click.option("-d", "--dest", help="Destination folder. If the path contains spaces, please surround them with quotes.", required=True)
-@click.option("-sh", "--sheet", default="Sheet1", help="Specify the sheet to read from.")
-@click.option("-m", "--move", is_flag=True, default=False, help="Set this flag to move the files instead of copying.")
-@click.option("-t", '--test', is_flag=True, default=False, help="Set this flag for a test run.")
-def main(source, dest, sheet, move, test):
-    files = get_files(source, sheet)
-    #files = sort_paths(files)
-    #skipped_files = enum_files(dest, files, move=move, test=test)
-    #pprint(skipped_files)
+@click.option("-s", "--src-file",
+              help="Source excel file. If the path contains spaces, please surround them with quotes.",
+              required=True)
+@click.option("-ap", "--abs-path",
+              help="Switches path handling to 'Absolute'.",
+              is_flag=True,
+              default=False)
+@click.option("-sh", "--sheet",
+              help="Specify the sheet to read from.",
+              default="Sheet1")
+@click.option("-m", "--move",
+              help="Set this flag to move the files instead of copying.",
+              is_flag=True,
+              default=False)
+@click.option("-t", '--test',
+              help="Set this flag for a test run.",
+              is_flag=True,
+              default=False)
+@click.option("-nh", '--no-header',
+              help="Set this flag if your Excel files has no header.",
+              is_flag=True,
+              default=False)
+def main(src_file, abs_path, sheet, no_header, move, test):
+    """
+    This is a small script to mass-copy files from one directory to another.
+    Important: The paths in the Excel can be either relative (default) or absolute.
+    If you chose to work with relative paths, please start this script IN the parent folder.
+
+        E.g: If you want to move files:
+
+        From: C:\\Users\\kbergene\\Documents\\SCO-ILD\\10.1
+
+        To: C:\\Users\\kbergene\\Documents\\SCO-ILD_Load\\10.1
+
+        Then you should run this script from the 'Documents folder.
+
+    It will create the destination folders, if needed.
+    """
+    files = enum_excel_rows(excel_file=src_file, sheet=sheet, no_header=no_header)
+    status = enum_files(files=files, abs_path=abs_path, move=move, test=test)
+
+    for file in status["skipped_files"]:
+        click.echo(click.style('Skipped', fg='red') + " - " + click.style(file, fg='yellow'))
+    click.echo(f"\n{click.style('Skipped', fg='yellow')}: {len(status['skipped_files'])}\n{click.style('Succeeded', fg='green')}: {len(status['success'])}\n{click.style('Total', fg='blue')}: {len(status['skipped_files']) + len(status['success'])}")
+
+    # Log
+    with open("log.txt", "a") as log:
+        for key, value in status.items():
+            for file in value:
+                if key == "skipped_files": key = "Skipped"
+                log.write(f"Status: {key.capitalize()} - File: {file}\n")
+        log.write(f"\nSkipped: {len(status['skipped_files'])}\nSuccess: {len(status['success'])}\nTotal: {len(status['skipped_files']) + len(status['success'])}\n\n")
 
 if __name__ == "__main__":
     main()
