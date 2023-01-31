@@ -6,11 +6,15 @@ import sys
 import re
 import os
 
+"""
+Author: Kåre Bergene 
+"""
 
 # TODO : Add GUI, I think I'd like to use PySimpleGUI for this.
 # TODO : Add overwrite protection?
-# TODO : Add time stamp to the log file.
-def enum_excel_rows(excel_file: str, sheet, no_header) -> dict:
+# TODO : Add time stamp to the log filename and in the logged text.
+# TODO : Log verbose and non-verbose text. Currently only some verbose text is logged.
+def enum_excel_rows(excel_file: str, sheet, no_header, verbose) -> dict:
     """
     Extracts filepaths from the given Excel file
     Args:
@@ -28,13 +32,21 @@ def enum_excel_rows(excel_file: str, sheet, no_header) -> dict:
         workbook = openpyxl.load_workbook(file)
         ws = workbook[sheet]
 
-        min_row = ws.min_row if no_header else ws.min_row + 1
 
+        if no_header:
+            min_row = ws.min_row
+            click.echo(click.style("Working", fg="green") + " - " + "Header flag disabled..")
+        else:
+            min_row = ws.min_row + 1
+            click.echo(click.style("Working", fg="green") + " - " + "Header flag enabled.")
+
+        click.echo(click.style("Working", fg="green") + " - " + "Enumerating rows.")
         for row_cells in ws.iter_rows(min_row=min_row, max_row=ws.max_row, max_col=3):
             regex = re.compile(r"^\D*\.(\D)(\d*)>$")
             matches = regex.findall(str(row_cells[0]))[0]
             row = matches[1]
             file_info[row] = {'file': row_cells[0].value, "source": row_cells[1].value, "dest": row_cells[2].value}
+        click.echo(click.style("Working", fg="green") + " - " + "Enumeration done.")
         return file_info
     elif file.is_dir():
         # TODO : I could add folder handling. When a folder is specified it enumerates the files in that dir instead of getting files form Excel.
@@ -44,7 +56,7 @@ def enum_excel_rows(excel_file: str, sheet, no_header) -> dict:
     sys.exit()
 
 
-def enum_files(files: dict, abs_path, move, test) -> dict:
+def enum_files(files: dict, abs_path, move, test, verbose) -> dict:
     """
     Enumerates over a list of files. It will then copy or move the files.
     Args:
@@ -56,7 +68,13 @@ def enum_files(files: dict, abs_path, move, test) -> dict:
     Returns:
         A dict containing two lists. Status regarding the copy/move succeeded or were skipped.
     """
+
+    click.echo(click.style("Working", fg="green") + " - " + f"{'Absolute' if abs_path else 'Relative'} paths enabled.")
+
     status = {"skipped_files": [], "success": []}
+
+    click.echo(click.style("Working", fg="green") + " - " + f"{'Copying..' if not move else 'Moving..'}")
+
     for row, info in files.items():
         if not abs_path:
             source_folder = pathlib.Path(os.getcwd(), info["source"])
@@ -69,18 +87,29 @@ def enum_files(files: dict, abs_path, move, test) -> dict:
         destination_file = pathlib.Path(destination_folder, info["file"])
         try:
             if source_file.is_file():
-                if not destination_folder.exists():
+                if verbose: click.echo(click.style("Success", fg="green") + " - " + "Source file exists.")
+                if not destination_folder.exists() and not test:
                     destination_folder.mkdir(parents=True, exist_ok=True)
+                    if verbose: click.echo(click.style("Success", fg="green") + " - " + f"Created directory: {destination_folder.resolve()}")
                 if not move and not test:
                     shutil.copy2(source_file, destination_file)
                 elif move and not test:
                     shutil.move(source_file, destination_file)
-                click.echo(click.style("Success", fg="green") + " - " + f"{'Copied' if not move else 'Moved'} file ({click.style(source_file.name, fg='yellow')}) from '{click.style(source_folder, fg='magenta')}' to '{click.style(destination_folder, fg='cyan')}'")
-                status["success"].append(str(source_file.resolve()))
+                if verbose: click.echo(click.style("Success", fg="green") + " - " + f"{'Copied' if not move else 'Moved'} file ({click.style(source_file.name, fg='yellow')}) from '{click.style(source_folder, fg='magenta')}' to '{click.style(destination_folder, fg='cyan')}'")
+                #["success"].append(f"Excel row: {row} - Source: {str(source_file.resolve())}")
+                status["success"].append({"row": row, "source": source_file.resolve()})
             else:
-                status["skipped_files"].append(str(source_file.resolve()))
+                if verbose: click.echo(
+                    click.style("Warning", fg="yellow") + " - " + f"Skipped file: " + click.style(source_file.resolve(), fg="yellow"))
+                #status["skipped_files"].append(f"Excel row: {row} - Source: {str(source_file.resolve())}")
+                status["skipped_files"].append({"row": row, "source": source_file.resolve()})
         except:
-            status["skipped_files"].append(str(source_file.resolve()))
+            if verbose: click.echo(
+                    click.style("Warning", fg="yellow") + " - " + f"Skipped file: " + click.style(source_file.resolve(), fg="yellow"))
+            #status["skipped_files"].append(f"Excel row: {row} - Source: {str(source_file.resolve())}")
+            status["skipped_files"].append({"row": row, "source": source_file.resolve()})
+
+    click.echo(click.style("Completed", fg="green"))
     return status
 
 
@@ -108,7 +137,15 @@ def enum_files(files: dict, abs_path, move, test) -> dict:
               help="Set this flag if your Excel files has no header.",
               is_flag=True,
               default=False)
-def main(src_file, abs_path, sheet, no_header, move, test):
+@click.option("-v", "--verbose",
+              help="Enables verbosity.",
+              is_flag=True,
+              default=False)
+@click.option("-l", "--logging",
+              help="Enables logging to file. File output is the current working directory.",
+              is_flag=True,
+              default=False)
+def main(src_file, abs_path, sheet, no_header, move, test, verbose, logging):
     """
     This is a small script to mass-copy files from one directory to another.
     Important!! The paths in the Excel file can be either relative (default) or absolute.
@@ -127,20 +164,24 @@ def main(src_file, abs_path, sheet, no_header, move, test):
 
     It will create the destination folders, if needed.
     """
-    files = enum_excel_rows(excel_file=src_file, sheet=sheet, no_header=no_header)
-    status = enum_files(files=files, abs_path=abs_path, move=move, test=test)
+    files = enum_excel_rows(excel_file=src_file, sheet=sheet, no_header=no_header, verbose=verbose)
+    status = enum_files(files=files, abs_path=abs_path, move=move, test=test, verbose=verbose)
 
-    for file in status["skipped_files"]:
-        click.echo(click.style('Skipped', fg='red') + " - " + click.style(file, fg='yellow'))
+    if verbose:
+        for file in status["skipped_files"]:
+            click.echo(click.style('Skipped', fg='red') + " - Row:" + click.style(file["row"], fg='yellow') + " - Source:" + click.style(file["source"], fg='yellow'))
+        for file in status["success"]:
+            click.echo(click.style('Success', fg='green') + " - Row: " + click.style(file["row"], fg='blue') + " - Source: " + click.style(file["source"], fg='yellow'))
     click.echo(f"\n{click.style('Skipped', fg='yellow')}: {len(status['skipped_files'])}\n{click.style('Succeeded', fg='green')}: {len(status['success'])}\n{click.style('Total', fg='blue')}: {len(status['skipped_files']) + len(status['success'])}")
 
     # Log
-    with open("log.txt", "a") as log:
-        for key, value in status.items():
-            for file in value:
-                if key == "skipped_files": key = "Skipped"
-                log.write(f"Status: {key.capitalize()} - File: {file}\n")
-        log.write(f"\nSkipped: {len(status['skipped_files'])}\nSuccess: {len(status['success'])}\nTotal: {len(status['skipped_files']) + len(status['success'])}\n\n")
+    if logging:
+        with open("log.txt", "a") as log:
+            for key, value in status.items():
+                for file in value:
+                    if key == "skipped_files": key = "Skipped"
+                    log.write(f"Status: {key.capitalize()} - Row: {file['row']} - File: {file['source']}\n")
+            log.write(f"\nSkipped: {len(status['skipped_files'])}\nSuccess: {len(status['success'])}\nTotal: {len(status['skipped_files']) + len(status['success'])}\n\n")
 
 if __name__ == "__main__":
     main()
