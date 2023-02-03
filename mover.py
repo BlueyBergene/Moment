@@ -42,9 +42,13 @@ def enum_excel_rows(excel_file: str, sheet, no_header, verbose) -> dict:
 
         click.echo(click.style("Working", fg="green") + " - " + "Enumerating rows.")
         for row_cells in ws.iter_rows(min_row=min_row, max_row=ws.max_row, max_col=3):
-            regex = re.compile(r"^\D*\.(\D)(\d*)>$")
-            matches = regex.findall(str(row_cells[0]))[0]
-            row = matches[1]
+            col_row = str(row_cells[0]).split(".")[-1]
+            regex = re.compile(r"(\d*)>$")
+            matches = regex.findall(col_row)
+            if isinstance(matches[0], tuple):
+                row = matches[0][1]
+            else:
+                row = matches[0]
             file_info[row] = {'file': row_cells[0].value, "source": row_cells[1].value, "dest": row_cells[2].value}
         click.echo(click.style("Working", fg="green") + " - " + "Enumeration done.")
         return file_info
