@@ -1,11 +1,38 @@
-import openpyxl
+from functools import wraps
+
 import openpyxl.utils.exceptions
+import openpyxl
 import pathlib
 import shutil
+
+import click_logging
+import logging
 import click
 import sys
 import re
 import os
+
+logger = logging.getLogger('cli_logger')
+logger.setLevel(logging.DEBUG)
+# create file handler which logs even debug messages
+fh = logging.FileHandler('cli.log')
+fh.setLevel(logging.DEBUG)
+# create formatter and add it to the handlers
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+fh.setFormatter(formatter)
+# add the handlers to logger
+logger.addHandler(fh)
+
+file_logger = logging.getLogger('file_logger')
+file_logger.setLevel(logging.DEBUG)
+# create file handler which logs even debug messages
+fh1 = logging.FileHandler('files.log')
+fh1.setLevel(logging.INFO)
+# create formatter and add it to the handlers
+formatter1 = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+fh1.setFormatter(formatter)
+# add the handlers to logger
+file_logger.addHandler(fh1)
 
 """
 Author: Kåre Bergene
@@ -17,6 +44,18 @@ Author: Kåre Bergene
 # TODO : Log verbose and non-verbose text. Currently only some verbose text is logged.
 # TODO : Implement Logging module.
 
+
+def log_params(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        context = click.get_current_context()
+        logger.debug(f"{context.command.name}(**{context.params})")
+        return fn(*args, **kwargs)
+    return wrapper
+
+
+def log(string, level=logger.info, ):
+    level(string)
 
 def enum_excel_rows(excel_file: str, sheet, no_header, verbose) -> dict:
     """
@@ -33,11 +72,13 @@ def enum_excel_rows(excel_file: str, sheet, no_header, verbose) -> dict:
     if file.is_file():
         file_info = {}
         click.echo(click.style("Success", fg="green") + " - " + "Source file found.")
+        logger.info("Source file found.")
         try:
             workbook = openpyxl.load_workbook(file)
         except openpyxl.utils.exceptions.InvalidFileException as e:
             # TODO : Log this error
             click.echo(click.style("Error", fg="red") + " - " + "Invalid file extension. Supported formats are: .xlsx, .xlsm, .xltx, .xltm")
+            logger.error("Invalid file extension. Supported formats are: .xlsx, .xlsm, .xltx, .xltm")
             sys.exit()
         ws = workbook[sheet]
 
@@ -49,6 +90,7 @@ def enum_excel_rows(excel_file: str, sheet, no_header, verbose) -> dict:
             click.echo(click.style("Working", fg="green") + " - " + "Header flag enabled.")
 
         click.echo(click.style("Working", fg="green") + " - " + "Enumerating rows.")
+        logger.info("Enumerating rows.")
         for row_cells in ws.iter_rows(min_row=min_row, max_row=ws.max_row, max_col=3):
             col_row = str(row_cells[0]).split(".")[-1]
             regex = re.compile(r"(\d*)>$")
@@ -59,12 +101,15 @@ def enum_excel_rows(excel_file: str, sheet, no_header, verbose) -> dict:
                 row = matches[0]
             file_info[row] = {'file': row_cells[0].value, "source": row_cells[1].value, "dest": row_cells[2].value}
         click.echo(click.style("Working", fg="green") + " - " + "Enumeration done.")
+        logger.info("Enumeration done.")
         return file_info
     elif file.is_dir():
         # TODO : I could add folder handling. When a folder is specified it enumerates the files in that dir instead of getting files form Excel.
         click.echo(click.style("Error", fg="red") + " - " + "Given path is a folder, not an Excel file." + click.style(" Aborting!", fg="red"))
+        logger.error("Given path is a folder, not an Excel file.")
     else:
         click.echo(click.style("Error", fg="red") + " - " + "Source file not found." + click.style(" Aborting!", fg="red"))
+        logger.error("Source file not found.")
     sys.exit()
 
 
@@ -156,7 +201,8 @@ def enum_files(files: dict, abs_path, move, test, verbose) -> dict:
               help="Enables logging to file. File output is the current working directory.",
               is_flag=True,
               default=False)
-def main(src_file, abs_path, sheet, no_header, move, test, verbose, logging):
+@log_params
+def main(src_file, abs_path, sheet, no_header, move, test, logging, verbose=False):
     """
     This is a small script to mass-copy files from one directory to another.
     Important!! The paths in the Excel file can be either relative (default) or absolute.
@@ -175,6 +221,7 @@ def main(src_file, abs_path, sheet, no_header, move, test, verbose, logging):
 
     It will create the destination folders, if needed.
     """
+
     files = enum_excel_rows(excel_file=src_file, sheet=sheet, no_header=no_header, verbose=verbose)
     status = enum_files(files=files, abs_path=abs_path, move=move, test=test, verbose=verbose)
 
@@ -187,7 +234,7 @@ def main(src_file, abs_path, sheet, no_header, move, test, verbose, logging):
 
     # Log
     if logging:
-        with open("log.txt", "a") as log:
+        with open("files.log", "w") as log:
             for key, value in status.items():
                 for file in value:
                     if key == "skipped_files": key = "Skipped"
@@ -196,4 +243,6 @@ def main(src_file, abs_path, sheet, no_header, move, test, verbose, logging):
 
 
 if __name__ == "__main__":
+
+
     main()
