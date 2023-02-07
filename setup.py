@@ -9,5 +9,5 @@ setup(
         'openpyxl'
     ],
     entry_points="""[console_scripts]
-    moment=mover:main"""
+    moment=moment:main"""
 )

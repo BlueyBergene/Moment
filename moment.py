@@ -1,4 +1,5 @@
 import openpyxl
+import openpyxl.utils.exceptions
 import pathlib
 import shutil
 import click
@@ -7,13 +8,16 @@ import re
 import os
 
 """
-Author: Kåre Bergene 
+Author: Kåre Bergene
 """
 
 # TODO : Add GUI, I think I'd like to use PySimpleGUI for this.
 # TODO : Add overwrite protection?
 # TODO : Add time stamp to the log filename and in the logged text.
 # TODO : Log verbose and non-verbose text. Currently only some verbose text is logged.
+# TODO : Implement Logging module.
+
+
 def enum_excel_rows(excel_file: str, sheet, no_header, verbose) -> dict:
     """
     Extracts filepaths from the given Excel file
@@ -29,9 +33,13 @@ def enum_excel_rows(excel_file: str, sheet, no_header, verbose) -> dict:
     if file.is_file():
         file_info = {}
         click.echo(click.style("Success", fg="green") + " - " + "Source file found.")
-        workbook = openpyxl.load_workbook(file)
+        try:
+            workbook = openpyxl.load_workbook(file)
+        except openpyxl.utils.exceptions.InvalidFileException as e:
+            # TODO : Log this error
+            click.echo(click.style("Error", fg="red") + " - " + "Invalid file extension. Supported formats are: .xlsx, .xlsm, .xltx, .xltm")
+            sys.exit()
         ws = workbook[sheet]
-
 
         if no_header:
             min_row = ws.min_row
@@ -117,7 +125,6 @@ def enum_files(files: dict, abs_path, move, test, verbose) -> dict:
     return status
 
 
-
 @click.command()
 @click.option("-s", "--src-file",
               help="Source excel file. If the path contains spaces, please surround them with quotes.",
@@ -186,6 +193,7 @@ def main(src_file, abs_path, sheet, no_header, move, test, verbose, logging):
                     if key == "skipped_files": key = "Skipped"
                     log.write(f"Status: {key.capitalize()} - Row: {file['row']} - File: {file['source']}\n")
             log.write(f"\nSkipped: {len(status['skipped_files'])}\nSuccess: {len(status['success'])}\nTotal: {len(status['skipped_files']) + len(status['success'])}\n\n")
+
 
 if __name__ == "__main__":
     main()
