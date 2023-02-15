@@ -23,17 +23,6 @@ fh.setFormatter(formatter)
 # add the handlers to logger
 logger.addHandler(fh)
 
-file_logger = logging.getLogger('file_logger')
-file_logger.setLevel(logging.DEBUG)
-# create file handler which logs even debug messages
-fh1 = logging.FileHandler('files.log')
-fh1.setLevel(logging.INFO)
-# create formatter and add it to the handlers
-formatter1 = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-fh1.setFormatter(formatter)
-# add the handlers to logger
-file_logger.addHandler(fh1)
-
 """
 Author: Kåre Bergene
 """
@@ -243,6 +232,4 @@ def main(src_file, abs_path, sheet, no_header, move, test, logging, verbose=Fals
 
 
 if __name__ == "__main__":
-
-
     main()
